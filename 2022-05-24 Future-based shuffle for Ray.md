@@ -12,22 +12,6 @@ For non-shuffle operators, the data key is the chunk key; but for shuffle operat
 
 Therefore, in order to build a Shuffle DAG based on Ray future, either all the data keys output by each mapper subtask are known in advance, or the data keys are removed.
 
-### Why not using data key?
-If data keys are used, all the data keys output by each mapper subtask must be known in advance, then pack those data keys and data into a dict and pass it to the subtask when the subtask is submitted.
-
-A new `get_data_keys()` interface needs to be added to all shuffle operators to obtain all the data keys of the subtask in advance:
-- For non-shuffle operators, this interface returns `[chunk.key]`
-- For the shuffle operator, this interface returns `[(chunk.key, reducer_idx1), ...... , (chunk.key, reducer_idxn)]
-  - For shuffle operators such as DataFrameGroupByOperand, the number of output shuffle blocks is fixed, and each mapper outputs `N` blocks, so all data keys`[(chunk.key, reducer_idx1), ...... , (chunk.key, reducer_idxn)]`
-  - For shuffle operators such as `TensorReshape`, each mapper may not have the outputs to all reducers, and the shuffle data keys it outputs is determined at runtime. For this type of operator, we need to return all data keys corresponding to all reducers`[(chunk.key, reducer_idx1), ...... , (chunk.key, reducer_idxn)]`; then when reducer iter_mapper_data, skip some partitions if there is no data for key. 
-  ![image](https://user-images.githubusercontent.com/12445254/169472129-f78828d7-5855-4386-837c-19208f848dcc.png)
-
-
-This solution has some drawbacks:
-- The metadata overhead would be very large, which will lead to supervisor OOM and task lineage evict. Assuming that we want to support `100T` data shuffle, the data size of each input chunk is 1GB, and the number of mappers and reducers is `100,000` respectively, then the data keys of each subtask will occupy about 4M memory, as shown in Figure 1, plus `FetchShuffle` stores source_keys/source_idxes/source_mappers, the data will expand by 3 times, that is, a single subtask will occupy `16M` memory. If the supervisor memory limit is 16G, this will cause the ray backend OOM when submitting 1000 subtasks.
-![image](https://user-images.githubusercontent.com/12445254/169472798-535b8229-8d82-473b-82a4-26136270a9c7.png)
-- Introduce shuffle operands implement burden because `get_data_keys` needs to be impelmented. 
-
 ### Building shuffle DAG by reducer index
 Acutally, Mars' ChunkGraph has information about the upstream and downstream chunk dependencies. After converting to Ray DAG, this part of the information still exists. The reason for relying on data keys is that Mars replaced `ShuffleProxy` with `FetchShuffle`. The implementation of `Fetch/FetchShuffle` is an abstraction of P2P, which is actually inconsistent with the semantics of Ray DAG. Therefore, when using Ray Backend, a new set of Shuffle operators can be introduced to remove FetchShuffle and rely on Ray to automatically resolve subtask input arguments.
 
@@ -58,6 +42,17 @@ class FetchShuffle(Operand):
 Add an option to replace `ShuffleProxy` to `FetchShuffleByIndex` when building subtask graph
 
 #### Using a ShuffleManager to manage Ray shuffle execution
+`ShuffleManager` is defined in `mars/services/task/execution/ray/shuffle.py` and only used by ray executor. When `TaskProcessorActor` invokes `RayTaskExecutor.execute_subtask_graph` to execute a subtask graph, `RayTaskExecutor` will create `ShuffleManager` to manage shuffle execution.
+
+`ShuffleManager` will do following things:
+- Build mapper index which is a dict from mapper subtask to (`shuffle_index`, `mapper_index`). A subtask graoh may have multiple groups of shuffle, `shuffle_index` indicates a mapper subtask belongs to which shuffle. `mapper_index` indicates is oridinal in all mapper subtasks of current shuffle.
+- Build reducer index which is a dict from reducer subtask to (`shuffle_index`, `reducer_ordinal`). A subtask graoh may have multiple groups of shuffle, `shuffle_index` indicates a reducer subtask belongs to which shuffle. `reducer_ordinal` indicates is oridinal in all reducer subtasks of current shuffle. If some reducers missing, `ShuffleManager` will filling None for those reducers index.
+- Recording mapper output object refs for all mapper subtasks, which will be used by later reducers get all mapper inputs based on reducer oridnal.
+- Return `n_reducers` for a shuffle when passing a mapper/reducer subtask.
+- In the future, it will manage push-based shuffle scheduling and execution.
+
+The code skeleton is as follows:
+
 ```python
 class ShuffleManager:
     def __init__(self, subtask_graph):
@@ -100,6 +95,22 @@ Load reducer mapper inputs:
 The final graph in ray will be:
 ![image](https://user-images.githubusercontent.com/12445254/169473353-98aca52e-524f-459d-92da-6b11d7bd207f.png)
 
+# Alternative Solution
+### Build shuffle DAG using data key
+If data keys are used, all the data keys output by each mapper subtask must be known in advance, then pack those data keys and data into a dict and pass it to the subtask when the subtask is submitted.
+
+A new `get_data_keys()` interface needs to be added to all shuffle operators to obtain all the data keys of the subtask in advance:
+- For non-shuffle operators, this interface returns `[chunk.key]`
+- For the shuffle operator, this interface returns `[(chunk.key, reducer_idx1), ...... , (chunk.key, reducer_idxn)]
+  - For shuffle operators such as DataFrameGroupByOperand, the number of output shuffle blocks is fixed, and each mapper outputs `N` blocks, so all data keys`[(chunk.key, reducer_idx1), ...... , (chunk.key, reducer_idxn)]`
+  - For shuffle operators such as `TensorReshape`, each mapper may not have the outputs to all reducers, and the shuffle data keys it outputs is determined at runtime. For this type of operator, we need to return all data keys corresponding to all reducers`[(chunk.key, reducer_idx1), ...... , (chunk.key, reducer_idxn)]`; then when reducer iter_mapper_data, skip some partitions if there is no data for key. 
+  ![image](https://user-images.githubusercontent.com/12445254/169472129-f78828d7-5855-4386-837c-19208f848dcc.png)
+
+
+This solution has some drawbacks:
+- The metadata overhead would be very large, which will lead to supervisor OOM and task lineage evict. Assuming that we want to support `100T` data shuffle, the data size of each input chunk is 1GB, and the number of mappers and reducers is `100,000` respectively, then the data keys of each subtask will occupy about 4M memory, as shown in Figure 1, plus `FetchShuffle` stores source_keys/source_idxes/source_mappers, the data will expand by 3 times, that is, a single subtask will occupy `16M` memory. If the supervisor memory limit is 16G, this will cause the ray backend OOM when submitting 1000 subtasks.
+![image](https://user-images.githubusercontent.com/12445254/169472798-535b8229-8d82-473b-82a4-26136270a9c7.png)
+- Introduce shuffle operands implement burden because `get_data_keys` needs to be impelmented. 
 
 # Follow-on Work
 - Push-based Shuffle using Ray Future DAG
