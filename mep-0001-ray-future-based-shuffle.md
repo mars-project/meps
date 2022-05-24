@@ -25,7 +25,9 @@ class FetchShuffleType(Enum):
 
 class FetchShuffleByIndex(Operand):
     _op_type_ = opcodes.FETCH_SHUFFLE_BY_INDEX
+    # number of all upstream mappers
     n_mappers = Int32Field("n_mappers")
+    # number of all downstream reducers
     n_reducers = Int32Field("n_reducers")
 
 class FetchShuffle(Operand):
