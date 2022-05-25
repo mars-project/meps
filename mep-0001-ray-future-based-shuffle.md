@@ -1,5 +1,5 @@
 # Motivation
-Shuffle is the core operation for large-scale data processing. The data is partitioned according to the partition key in each record through the ALL-TO-ALL connection, and sent from all mappers to all reducers. Due to the nature of its ALL-TO_ALL connections, shuffle often becomes the bottleneck of the performance, stability and scalability of the entire system. This MEP introduces a pull-based shuffle implementation using Ray future which serves following goals:
+Shuffle is the core operation for large-scale data processing. The data is partitioned according to the partition key in each record through the ALL-TO-ALL connection, and sent from all mappers to all reducers. Due to the nature of its ALL-TO-ALL connections, shuffle often becomes the bottleneck of the performance, stability and scalability of the entire system. This MEP introduces a pull-based shuffle implementation using Ray future which serves following goals:
 - Improve Mars-on-Ray shuffle scalability by reducing shuffle meta
 - Improve scheduling performance by using Ray C++ scheduler
 - Support shuffle failover by lineage reconstruction
