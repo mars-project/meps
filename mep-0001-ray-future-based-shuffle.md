@@ -17,25 +17,19 @@ Actually, Mars' ChunkGraph has information about the upstream and downstream chu
  
 #### Operand Changes
 - Add `n_reducers` and `reducer_ordinal` to all `MapReduceOperand` operands
-- Introduce a new group of `FetchShuffle` operands which only records `n_mappers` and `n_reducers` to reduce meta overhead:
+- Add `n_mappers` and `n_reducers` to `FetchShuffle`:
 ```python
-class FetchShuffleType(Enum):
-   FETCH_SHUFFLE_BY_INDEX = 0
-   FETCH_SHUFFLE_BY_DATA_KEY = 1
- 
-class FetchShuffleByIndex(Operand):
-   _op_type_ = opcodes.FETCH_SHUFFLE_BY_INDEX
-   # number of all upstream mappers
-   n_mappers = Int32Field("n_mappers")
-   # number of all downstream reducers
-   n_reducers = Int32Field("n_reducers")
- 
 class FetchShuffle(Operand):
    _op_type_ = opcodes.FETCH_SHUFFLE_BY_DATA_KEY
    source_keys = ListField("source_keys", FieldTypes.string)
    source_idxes = ListField("source_idxes", FieldTypes.tuple(FieldTypes.uint64))
    source_mappers = ListField("source_mappers", FieldTypes.uint16)
+   # number of all upstream mappers
+   n_mappers = Int32Field("n_mappers")
+   # number of all downstream reducers
+   n_reducers = Int32Field("n_reducers")   
 ```
+When running on ray, `source_keys`/`source_idxes`/`source_mappers` will be set to None to reduce meta overhead.
 - Make shuffle operands mapper produce output with deterministic number and order.
    - `TensorReshape` and `TensorBinCount` mapper needs change.
 - _bagging.py uses `source_idxes`, which also needs to be refactored.
