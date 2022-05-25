@@ -41,8 +41,8 @@ Add an option to replace `ShuffleProxy` to `FetchShuffleByIndex` when building s
 `ShuffleManager` is defined in `mars/services/task/execution/ray/shuffle.py` and only used by Ray executor. When `TaskProcessorActor` invokes `RayTaskExecutor.execute_subtask_graph` to execute a subtask graph, The `RayTaskExecutor` will create a `ShuffleManager` to manage shuffle execution.
  
 The `ShuffleManager` will do following things:
-- Build mapper index which is a dict from mapper subtask to (`shuffle_index`, `mapper_index`). A subtask graph may have multiple groups of shuffles, `shuffle_index` indicates a mapper subtask belongs to which shuffle. `mapper_index` indicates is ordinal in all mapper subtasks of current shuffle.
-- Build reducer index which is a dict from reducer subtask to (`shuffle_index`, `reducer_ordinal`). A subtask graph may have multiple groups of shuffles, `shuffle_index` indicates a reducer subtask belongs to which shuffle. `reducer_ordinal` indicates ordinal in all reducer subtasks of current shuffle. If some reducers are missing, `ShuffleManager` will fill `None` for those reducers index.
+- Build mapper index which is a dict from mapper subtask to (`shuffle_index`, `mapper_index`). A subtask graph may have multiple groups of shuffles, `shuffle_index` indicates which shuffle a mapper subtask belongs to. `mapper_index` is the ordinal in all mapper subtasks of current shuffle.
+- Build reducer index which is a dict from reducer subtask to (`shuffle_index`, `reducer_ordinal`). A subtask graph may have multiple groups of shuffles, `shuffle_index` indicates which shuffle a reducer subtask belongs to. `reducer_ordinal` is the ordinal in all reducer subtasks of current shuffle. If some reducers are missing, `ShuffleManager` will fill `None` for those reducers index.
 - Recording mapper output object refs for all mapper subtasks, which will be used by later reducers to get all mapper inputs based on reducer ordinal.
 - Return `n_reducers` for a shuffle when passing a mapper/reducer subtask.
 - In the future, it will manage push-based shuffle scheduling and execution.
