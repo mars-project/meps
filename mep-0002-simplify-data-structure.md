@@ -284,13 +284,15 @@ For convenience, we take the following steps to generate `op_id` and mapping:
 - When constructing op, first check the type of value in mapping, if it is str, load the corresponding operand class, and update value to operand class, if it is class, then use it directly.
 - Construct the mapping when building pymars wheel.
 
+> The hash function is not the builtin `hash()`. Because Python 3.4+ switched the hash function to SipHash for security (to avoid collision attack), the same string has different hash values in different Python processes. We will use murmurhash here.
+
 And the mapping is like:
 
 ```python
 OPERAND_MAPPING = {
-    7564416225262750113: 'mars.tensor.random.core.TensorRandomOperand' or TensorRandomOperand,
-    -7452009120603090710: 'mars.core.operand.shuffle.MapReduceOperand',
-    -8522215247238295229: 'mars.core.operand.fetch.FetchShuffle',
+    574610788: 'mars.tensor.random.core.TensorRandomOperand' or TensorRandomOperand,
+    1112862296: 'mars.core.operand.shuffle.MapReduceOperand',
+    710700605: 'mars.core.operand.fetch.FetchShuffle',
 	...
 }
 ```
