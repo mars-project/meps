@@ -24,7 +24,7 @@ The main problem of Mars for now is performance. We did a lot of experiments and
 | 40_000 | 846.92 | 85.29 | 45.73 | 343.48 |
 | 200_000 | 827.36 | 78.61 | 44.59 | 326.48 |
 
-Table 1: Tps of Dasks and Mars runing on a Node
+Table 1: Tps of Dask and Mars runing on a Node
 
 | **Tasks/Subtasks** | **Dask** | **Mars** | **Mars on Ray** | **Mars on Ray DAG** |
 | --- | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ Table 1: Tps of Dasks and Mars runing on a Node
 | 40_000 | 1366.09 | 128.68 | 86.69 | 438.97 |
 | 200_000 | 1220.73 | 129.85 | 96.65 | 369.47 |
 
-Table 2: Tps of Dasks and Mars runing on three Nodes
+Table 2: Tps of Dask and Mars runing on three Nodes
 > Tasks/Subtasks: the number of tasks of Dask job, the number of subtasks of Mars job.
 
 We can see that tps of Mars is much smaller than Dask regardless of a single node or multiple node. And we draw three conclusions after detailed analysis:
@@ -51,7 +51,7 @@ In this proposal, we focus on optimizing the first two issues by simplifying the
 
 ## Design and Architecture
 
-We mainly makes the following optimizations in simplifying the data structure.
+We mainly make the following optimizations in simplifying the data structure.
 
 ### Chunk and ChunkData merged to Chunk
 
@@ -249,7 +249,7 @@ class TensorChunkData(Serializable):
         super().__init__(*args, **kwargs)
 ```
 
-We also consturcted a `TensorChunkData`:
+We also constructed a `TensorChunkData`:
 
 ![mep-0002_09](https://user-images.githubusercontent.com/5388750/231441728-af08d374-d327-45c0-803d-c611f4dda7ad.png)
 
@@ -272,7 +272,7 @@ We constructed a `TensorChunk`:
 
 ![mep-0002_10](https://user-images.githubusercontent.com/5388750/231441729-22081b47-241a-4944-a283-70ae34795194.png)
 
-The cost is about 8.28e-07s which accounts for **29.5%** of constructing a `TensorChunkData`. We can save this time consuming if we merge `Chunk`and `ChunkData` into `Chunk`.
+The cost is about 8.28e-07s which accounts for **29.5%** of constructing a `TensorChunkData`. We can save this time consuming if we merge `Chunk` and `ChunkData` into `Chunk`.
 
 ### Modification of Operand
 
@@ -384,8 +384,8 @@ class Subtask(Serializable):
 ## Follow-on Work and Plan
 
 1. Optimize the chunks creation in generating `SubtaskGraph`.
-2. Remove `_id`and only keep the `_key` of `TileableData`, `ChunkData`and `Operand`.
-3. Merge `Chunk`and `ChunkData`into `Chunk` and simplify the `_key` generation of `Chunk`.
+2. Remove `_id` and only keep the `_key` of `TileableData`, `ChunkData`and `Operand`.
+3. Merge `Chunk` and `ChunkData`into `Chunk` and simplify the `_key` generation of `Chunk`.
 4. Change operand instance to operand parameters in `ChunkData` and modify the operand.
 5. Simplify `Subtask`
 6. Optimize the `logic_key` generation.
