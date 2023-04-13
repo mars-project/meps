@@ -8,14 +8,14 @@
         - [Chunk and ChunkData merged to Chunk](#chunk-and-chunkdata-merged-to-chunk)
         - [Modification of Operand](#modification-of-operand)
         - [Subtask Fields](#subtask-fields)
-        - [Other Optimization](#other-optimization)
+        - [Other Optimizations](#other-optimizations)
     - [Follow-on Work and Plan](#follow-on-work-and-plan)
 
 <!-- /TOC -->
 
 ## General Motivation
 
-The main problem of Mars right now is performance. We did a lot of experiments and tests comparing with Dask on a single node and multiple nodes. And the results are shown in the tables below:
+The main problem of Mars for now is performance. We did a lot of experiments and tests comparing Mars with Dask on a single node and on multiple nodes. And the results are shown in the tables below:
 
 | **Tasks/Subtasks** | **Dask** | **Mars** | **Mars on Ray** | **Mars on Ray DAG** |
 | --- | --- | --- | --- | --- |
@@ -36,18 +36,18 @@ Table 1: Tps of Dasks and Mars runing on a Node
 Table 2: Tps of Dasks and Mars runing on three Nodes
 > Tasks/Subtasks: the number of tasks of Dask job, the number of subtasks of Mars job.
 
-We can see that tps of Mars is much smaller than Dask regardless of a single node or distributed scenarios. And we draw three conclusions after detailed analysis:
+We can see that tps of Mars is much smaller than Dask regardless of a single node or multiple node. And we draw three conclusions after detailed analysis:
 
-- Graph generation is much slower than Dask. There is 3 different graphs in Mars: `TileableGraph`, `ChunkGraph` and `SubtaskGraph` while Dask has only a `HighLevelGraph`. And `ChunkGraph` and `SubtaskGraph` generation are very slow, especailly `SubtaskGraph` generation.
-- Mars serialization and deserialization takes longer than Dask, which is related to two issues: data structure and serialization and deserialization method.
-- Mars has much more rpc than Dask, because Dask does a batch send for all rpcs, even if those rpcs are of different types.
+- In graph generation, Mars is much slower than Dask. Mars generates three graphs: `TileableGraph`, `ChunkGraph` and `SubtaskGraph`, while Dask only generates one: `HighLevelGraph`. Specifically, the generation of `ChunkGraph` and `SubtaskGraph` takes more time, and `SubtaskGraph` is even worse.
+- In serialization and deserialization, Mars takes longer than Dask. This can be explained by two issues: 1. data structure; 2. serialization and deserialization method.
+- In rpc, Mars has much more than Dask. This is because Dask does a batch send for all rpcs, even if those rpcs are in different types.
 
 The first two issues are related to data structure. There are several problems with complex data structures:
 
 - The main data structure of the graph is `ChunkData`. If it takes a long time to create new chunk data and there are many chunk data, then graph generation will be very time-consuming.
-- Serialization and deserialization data is larger and takes longer time.
+- Serialization and deserialization data is larger and the ser/derializing process take longer time.
 
-So, this proposal we focus on addressing the first two issues by simplifying the data structure. And we'll optimize the serialization later.
+In this proposal, we focus on optimizing the first two issues by simplifying the data structure. And we'll optimize the serialization later.
 
 ## Design and Architecture
 
@@ -59,7 +59,7 @@ In order to address the main problem of graph generation, we profiled the superv
 
 ![mep-0002_01](https://user-images.githubusercontent.com/5388750/231441694-82cba4a4-ecca-4949-8445-363fd51c9673.png)
 
-The graph is the tile process of ChunkGraph generation. We can see from the figure that the chunk creatings took too long. And the reason is that ChunkData has too many fields and its inheritance relationship is complicated.
+The above graph is the tile process of ChunkGraph generation. We can see that the chunk creatings took too long. And the reason is that ChunkData has too many fields and its inheritance relationship is complicated.
 The current data structure of `Chunk` and `ChunkData`are:
 
 ![mep-0002_02](https://user-images.githubusercontent.com/5388750/231441707-1a0e2cad-bb85-4b01-bedf-05f768fe27ab.png)
@@ -68,7 +68,7 @@ The current data structure of `Chunk` and `ChunkData`are:
 
 1. Remove `type_name` and we can use `self.__class__.__name__` instead when necessary.
 
-    Currently the main place of use is `DataFrameData`and `CategoricalData` like:
+    Currently, the main place of use is `DataFrameData`and `CategoricalData` like:
 
     ```python
     class DataFrameData(_BatchedFetcher, BaseDataFrameData):
@@ -159,7 +159,7 @@ Secondly, we remove the `_id` field and then do the same constucting.
 
 ![mep-0002_05](https://user-images.githubusercontent.com/5388750/231441715-6b26adae-9dcf-4fbe-86c9-f727b06cf674.png)
 
-The cost becames 2.26e-06s, which is reduced **19.6%**.
+The cost becomes 2.26e-06s, which is reduced by **19.6%**.
 
 **4** is to change the operand instance to parameters. And also we did a comparison.
 
@@ -181,7 +181,7 @@ The serializtion cost is:
 
 ![mep-0002_07](https://user-images.githubusercontent.com/5388750/231441724-001346e1-5d03-4f5a-9903-c591f828e927.png)
 
-We can see that data size is reduced **71.5%**, and cost reduced **63.8%**.
+We can see that data size is reduced by **71.5%**, and cost reduced by **63.8%**.
 **5** is to reduce the inheritance level of the class and the test result is as follow.
 
 Firstly, we define a `TensorChunkData` which extends `EntityData`:
@@ -253,7 +253,7 @@ We also consturcted a `TensorChunkData`:
 
 ![mep-0002_09](https://user-images.githubusercontent.com/5388750/231441728-af08d374-d327-45c0-803d-c611f4dda7ad.png)
 
-The cost is about 2.81e-06s, which is reduced **20.8%**.
+The cost is about 2.81e-06s, which is reduced by **20.8%**.
 
 There is another point to reduce time-consuming effect of **5**.
 
@@ -276,7 +276,7 @@ The cost is about 8.28e-07s which accounts for **29.5%** of constructing a `Tens
 
 ### Modification of Operand
 
-We need to generated a `op_id`field for every Operand, and maintain a mapping from `op_id`to Operand like follows so as to find the corresponding Operand and construct the Operand instance.
+We need to generate a `op_id`field for every Operand, and maintain a mapping from `op_id`to Operand like follows so as to find the corresponding Operand and construct the Operand instance.
 For convenience, we take the following steps to generate `op_id` and mapping:
 
 - `op_id = hash("Operand's full path")`
@@ -300,7 +300,7 @@ OPERAND_MAPPING = {
 ### Subtask Fields
 
 1. Remove `subtask_name` and only `TaskProcessorActor.get_tileable_subtasks`use it currently.
-2. The `task_id` could be directly generated by a global sequencer, the `stage_id` is generated by the task-level sequencer, and the `subtask_id` is generated by the stage-level sequencer. Finally, we can compose `subtask_id` like: 
+2. The `task_id` can be directly generated by a global sequencer, the `stage_id` is generated by the task-level sequencer, and the `subtask_id` is generated by the stage-level sequencer. Finally, we can compose `subtask_id` like:
 
     ```python
     def gen_subtask_id(task_id, stage_id, subtask_id):
@@ -333,11 +333,11 @@ OPERAND_MAPPING = {
     subtask_id = subtask_id[4::6]
     ```
 
-    We compared the new subtask id generation method with the old method and the results are as follows:
+    We compared the new subtask id generation method with the old method. The results are as follows:
 
     ![mep-0002_11](https://user-images.githubusercontent.com/5388750/231441731-27b3b28b-f0cc-4dd2-bb7d-a011422c18c6.png)
 
-    The time consumption is reduced to **2.9%** of the original. And the bytes are reduced **from 24 to 12**.
+    The time consumption is reduced to **2.9%**. And the bytes are reduced **from 24 to 12**.
 
 And finally the fields of Subtask are:
 
@@ -372,14 +372,14 @@ class Subtask(Serializable):
     chunk_graph: ChunkGraph
 ```
 
-### Other Optimization
+### Other Optimizations
 
-1. Simplify the key generation of `Chunk` by using `op key + chunk index`. We only need to generate the key once instead of generating the same number of keys as the number of chunks.
-2. We construct the same Chunk of ChunkGraph when generating a SubtaskGraph.
+1. Simplify the key generation of `Chunk` by using `op key + chunk index`. We only need to generate the key once, instead of generating the same number of keys as the number of chunks.
+2. Construct the same Chunk of ChunkGraph when generating a SubtaskGraph.
 
-    We did a comparison: one creating new chunk and the other does not. The result is that the cost is reduced from 43.4s to 14.6s which is about **66.4%** reduced. But there is one point that `FetchChunk` needs to be created.
+    We did a comparison, in which one creates new chunk and the other does not. The result shows that the cost is reduced from 43.4s to 14.6s with about **66.4%** reduction. We note here that there that `FetchChunk` needs to be created.
 
-3. We generate logic_key once for all operands or subtasks, in fact, it is possible to generate only once for operand and subtask of the same type.
+3. We generate `logic_key` once for all operands or subtasks. In fact, it is possible to generate only once for operand and subtask of the same type.
 
 ## Follow-on Work and Plan
 
