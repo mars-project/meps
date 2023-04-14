@@ -104,9 +104,9 @@ The current data structure of `Chunk` and `ChunkData` are:
     ```
 
 2. Remove `__allow_data_type__` which is used to check the validity of chunk data. If we remove `ChunkData`, it doesn't need to exist.
-3. Remove `_id`and keep only `_key`.
+3. Remove `_id` and keep only `_key`.
 4. Express operand with op id and args to replace operand instance.
-5. Remove `Entity`and `EntityData` to reduce class inheritance hierarchy.
+5. Remove `Entity` and `EntityData` to reduce class inheritance hierarchy.
 
 Finally we will get the Chunk:
 
@@ -223,7 +223,7 @@ We constructed a `TensorChunkData`:
 
 The cost is about 3.55e-06s.
 
-Secondly, we define a `TensorChunkData` which extends `Serializable`directly.
+Secondly, we define a `TensorChunkData` which extends `Serializable` directly.
 
 ```python
 class TensorChunkData(Serializable):
@@ -277,7 +277,7 @@ We can largely alleviate this kind of time-consuming problem by merging `Chunk` 
 
 ### Modification of Operand
 
-We need to generate a `op_id`field for every Operand, and maintain a mapping from `op_id` to Operand as follows to find the corresponding Operand and construct the Operand instance.
+We need to generate a `op_id` field for every Operand, and maintain a mapping from `op_id` to Operand as follows to find the corresponding Operand and construct the Operand instance.
 For convenience, we take the following steps to generate `op_id` and mapping:
 
 - `op_id = hash("Operand's full path")`
@@ -385,8 +385,8 @@ class Subtask(Serializable):
 ## Follow-on Work and Plan
 
 1. Optimize the chunks creation in generating `SubtaskGraph`.
-2. Remove `_id` and only keep the `_key` of `TileableData`, `ChunkData`and `Operand`.
-3. Merge `Chunk` and `ChunkData`into `Chunk` and simplify the `_key` generation of `Chunk`.
+2. Remove `_id` and only keep the `_key` of `TileableData`, `ChunkData` and `Operand`.
+3. Merge `Chunk` and `ChunkData` into `Chunk` and simplify the `_key` generation of `Chunk`.
 4. Change operand instance to operand parameters in `ChunkData` and modify the operand.
 5. Simplify `Subtask`
 6. Optimize the `logic_key` generation.
